@@ -4,7 +4,7 @@
 extern crate test;
 
 use test::Bencher;
-use xray::{TraceId, SegmentId};
+use xray::{SegmentId, TraceId};
 
 #[bench]
 fn bench_trace_id(b: &mut Bencher) {

@@ -1,7 +1,8 @@
 //! Provides a client interface for [AWS X-Ray](https://aws.amazon.com/xray/)
 // Std
 use std::{
-    fmt,
+    env, fmt,
+    net::SocketAddr,
     ops::Not,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -9,10 +10,37 @@ use std::{
 // Third Party
 use rand::RngCore;
 use serde_derive::{Deserialize, Serialize};
+use tokio::net::{udp::SendDgram, UdpSocket};
 
 mod bytebuf;
 use crate::bytebuf::ByteBuf;
 
+pub struct Client {
+    addr: SocketAddr,
+}
+
+impl Client {
+    pub fn new() -> Client {
+        // https://docs.aws.amazon.com/lambda/latest/dg/lambda-x-ray.html
+        // todo rep error
+        let addr = env::var("AWS_XRAY_DAEMON_ADDRESS")
+            .expect("expected AWS_XRAY_DAEMON_ADDRESS")
+            .parse()
+            .unwrap();
+        Client { addr }
+    }
+    pub fn send(
+        self,
+        value: Segment,
+    ) -> SendDgram<Vec<u8>> {
+        // todo rep error
+        // https://github.com/tokio-rs/tokio/blob/master/examples/udp-client.rs#L44
+        UdpSocket::bind(&"0.0.0.0:0".parse().unwrap()).unwrap().send_dgram::<Vec<u8>>(
+            serde_json::to_vec(&value).expect("failed to serialize"),
+            &self.addr,
+        )
+    }
+}
 /// Coorelates a string of spans together
 ///
 /// Users need only refer to displayability
@@ -78,7 +106,6 @@ fn unix_seconds() -> u64 {
         .unwrap_or_default()
         .as_secs()
 }
-
 
 // https://docs.aws.amazon.com/xray/latest/devguide/xray-api-sendingdata.html
 // https://docs.aws.amazon.com/xray/latest/devguide/xray-api-segmentdocuments.html
