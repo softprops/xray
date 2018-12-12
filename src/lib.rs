@@ -69,8 +69,6 @@ impl fmt::Display for SegmentId {
             SegmentId::New(bytes) => write!(f, "{:x}", ByteBuf(bytes)),
             SegmentId::Rendered(value) => write!(f, "{}", value),
         }
-        //write!(f, "{:x}", ByteBuf(self.0.as_bytes()))
-        //write!(f, "{}", self.0)
     }
 }
 
@@ -161,21 +159,6 @@ pub struct Request {
 pub struct Response {
     status: Option<u16>,
     content_length: Option<u64>,
-}
-
-pub fn trace_id() -> String {
-    //let mut buf = [0; 12];
-    //rand::thread_rng().fill_bytes(&mut buf);
-    //TraceId(unix_seconds(), &buf)
-    //format!("1-{:08x}-{:x}", unix_seconds(), ByteBuf(&buf))
-    format!("{}", TraceId::new())
-}
-
-pub fn segment_id() -> String {
-    let mut buf = [0; 8];
-    rand::thread_rng().fill_bytes(&mut buf);
-    //SpanId(&buf)
-    format!("{:x}", ByteBuf(&buf))
 }
 
 #[cfg(test)]
