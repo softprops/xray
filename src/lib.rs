@@ -1,44 +1,61 @@
 //! Provides a client interface for [AWS X-Ray](https://aws.amazon.com/xray/)
 // Std
 use std::{
+    cell::RefCell,
     env, fmt,
-    net::SocketAddr,
     ops::Not,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 // Third Party
 use rand::RngCore;
 use serde_derive::{Deserialize, Serialize};
-use tokio::net::{udp::SendDgram, UdpSocket};
+use tokio::net::UdpSocket;
 
 mod bytebuf;
 use crate::bytebuf::ByteBuf;
 
+const HEADER: &str = r#"{"format": "json", "version": 1}\n"#;
+
+#[derive(Debug)]
 pub struct Client {
-    addr: SocketAddr,
+    socket: RefCell<UdpSocket>,
 }
 
-impl Client {
-    pub fn new() -> Client {
+impl Default for Client {
+    fn default() -> Self {
         // https://docs.aws.amazon.com/lambda/latest/dg/lambda-x-ray.html
         // todo rep error
         let addr = env::var("AWS_XRAY_DAEMON_ADDRESS")
-            .expect("expected AWS_XRAY_DAEMON_ADDRESS")
+            .unwrap_or_else(|_| "127.0.0.1:2000".into())
             .parse()
             .unwrap();
-        Client { addr }
+        let socket = UdpSocket::bind(&"0.0.0.0:0".parse().expect("invalid addr"))
+            .expect("failed to bind to socket");
+        socket
+            .connect(&addr)
+            .expect(&format!("unable to connect to {}", addr));
+        Client::new(socket)
     }
+}
+
+impl Client {
+    pub fn new(socket: UdpSocket) -> Self {
+        Client {
+            socket: RefCell::new(socket),
+        }
+    }
+
+    /// send a segment to the xray daemon this client is connected to
     pub fn send(
-        self,
+        &self,
         value: Segment,
-    ) -> SendDgram<Vec<u8>> {
+    ) -> std::io::Result<()> {
         // todo rep error
         // https://github.com/tokio-rs/tokio/blob/master/examples/udp-client.rs#L44
-        UdpSocket::bind(&"0.0.0.0:0".parse().unwrap()).unwrap().send_dgram::<Vec<u8>>(
-            serde_json::to_vec(&value).expect("failed to serialize"),
-            &self.addr,
-        )
+        let bytes = serde_json::to_vec(&value).expect("failed to serialize");
+        let packet = [HEADER.as_bytes(), &bytes].concat();
+        self.socket.borrow_mut().poll_send(&packet).map(|_| ())
     }
 }
 /// Coorelates a string of spans together
@@ -98,6 +115,10 @@ impl fmt::Display for SegmentId {
             SegmentId::Rendered(value) => write!(f, "{}", value),
         }
     }
+}
+
+fn fractional_seconds(d: Duration) -> f64 {
+    d.as_secs() as f64 + (d.subsec_nanos() as f64 / 1_000_000_000.0)
 }
 
 fn unix_seconds() -> u64 {
