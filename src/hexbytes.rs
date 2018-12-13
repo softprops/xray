@@ -1,9 +1,9 @@
 use std::fmt;
 
 /// Wraps a byte slice to enable lowcast hex display formatting
-pub(crate) struct ByteBuf<'a>(pub(crate) &'a [u8]);
+pub(crate) struct Bytes<'a>(pub(crate) &'a [u8]);
 
-impl fmt::LowerHex for ByteBuf<'_> {
+impl fmt::LowerHex for Bytes<'_> {
     fn fmt(
         &self,
         fmt: &mut fmt::Formatter<'_>,
@@ -17,9 +17,9 @@ impl fmt::LowerHex for ByteBuf<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::ByteBuf;
+    use super::Bytes;
     #[test]
     fn formats_lowerhex() {
-        assert_eq!(format!("{:x}", ByteBuf(b"test")), "74657374")
+        assert_eq!(format!("{:x}", Bytes(b"test")), "74657374")
     }
 }

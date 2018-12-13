@@ -12,8 +12,8 @@ use rand::RngCore;
 use serde_derive::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
 
-mod bytebuf;
-use crate::bytebuf::ByteBuf;
+mod hexbytes;
+use crate::hexbytes::Bytes;
 
 const HEADER: &str = r#"{"format": "json", "version": 1}\n"#;
 
@@ -84,7 +84,7 @@ impl fmt::Display for TraceId {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self {
-            TraceId::New(seconds, bytes) => write!(f, "1-{:08x}-{:x}", seconds, ByteBuf(bytes)),
+            TraceId::New(seconds, bytes) => write!(f, "1-{:08x}-{:x}", seconds, Bytes(bytes)),
             TraceId::Rendered(value) => write!(f, "{}", value),
         }
     }
@@ -111,7 +111,7 @@ impl fmt::Display for SegmentId {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self {
-            SegmentId::New(bytes) => write!(f, "{:x}", ByteBuf(bytes)),
+            SegmentId::New(bytes) => write!(f, "{:x}", Bytes(bytes)),
             SegmentId::Rendered(value) => write!(f, "{}", value),
         }
     }
