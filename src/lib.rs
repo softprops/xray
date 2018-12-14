@@ -227,7 +227,7 @@ fn fractional_seconds() -> f64 {
     let d = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
-    d.as_secs() as f64 + (d.subsec_nanos() as f64 / 1.0e9)
+    d.as_secs() as f64 + (f64::from(d.subsec_nanos()) / 1.0e9)
 }
 
 fn unix_seconds() -> u64 {
