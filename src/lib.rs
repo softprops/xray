@@ -5,7 +5,7 @@ use std::{
     env, fmt,
     net::SocketAddr,
     ops::Not,
-    time::{ SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 // Third Party
@@ -109,28 +109,39 @@ struct TraceIdVisitor;
 impl<'de> de::Visitor<'de> for TraceIdVisitor {
     type Value = TraceId;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn expecting(
+        &self,
+        formatter: &mut fmt::Formatter,
+    ) -> fmt::Result {
         formatter.write_str("a string value")
     }
-    fn visit_str<E>(self, value: &str) -> Result<TraceId, E>
-        where E: de::Error
+    fn visit_str<E>(
+        self,
+        value: &str,
+    ) -> Result<TraceId, E>
+    where
+        E: de::Error,
     {
         Ok(TraceId::Rendered(value.into()))
     }
 }
 
 impl ser::Serialize for TraceId {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    fn serialize<S>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
     {
         serializer.serialize_str(&format!("{}", self))
     }
 }
 
-
 impl<'de> de::Deserialize<'de> for TraceId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: de::Deserializer<'de>
+    where
+        D: de::Deserializer<'de>,
     {
         deserializer.deserialize_f64(TraceIdVisitor)
     }
@@ -163,7 +174,6 @@ impl fmt::Display for SegmentId {
     }
 }
 
-
 impl Default for SegmentId {
     fn default() -> Self {
         SegmentId::new()
@@ -175,28 +185,39 @@ struct SegmentIdVisitor;
 impl<'de> de::Visitor<'de> for SegmentIdVisitor {
     type Value = SegmentId;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn expecting(
+        &self,
+        formatter: &mut fmt::Formatter,
+    ) -> fmt::Result {
         formatter.write_str("a string value")
     }
-    fn visit_str<E>(self, value: &str) -> Result<SegmentId, E>
-        where E: de::Error
+    fn visit_str<E>(
+        self,
+        value: &str,
+    ) -> Result<SegmentId, E>
+    where
+        E: de::Error,
     {
         Ok(SegmentId::Rendered(value.into()))
     }
 }
 
 impl ser::Serialize for SegmentId {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    fn serialize<S>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
     {
         serializer.serialize_str(&format!("{}", self))
     }
 }
 
-
 impl<'de> de::Deserialize<'de> for SegmentId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: de::Deserializer<'de>
+    where
+        D: de::Deserializer<'de>,
     {
         deserializer.deserialize_str(SegmentIdVisitor)
     }
@@ -258,9 +279,11 @@ pub struct Segment {
     //pub subsegments: Option<Value>,
 }
 
-
 impl Segment {
-    pub fn begin<N>(name: N) -> Self where N: Into<String> {
+    pub fn begin<N>(name: N) -> Self
+    where
+        N: Into<String>,
+    {
         Segment {
             name: name.into(),
             ..Segment::default()
