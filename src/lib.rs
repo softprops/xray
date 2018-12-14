@@ -3,22 +3,25 @@
 use std::{
     cell::RefCell,
     env, fmt,
+    net::SocketAddr,
     ops::Not,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{ SystemTime, UNIX_EPOCH},
 };
 
 // Third Party
 use rand::RngCore;
+use serde::{de, ser, Serializer};
 use serde_derive::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
 
 mod hexbytes;
 use crate::hexbytes::Bytes;
 
-const HEADER: &str = r#"{"format": "json", "version": 1}\n"#;
+const HEADER: &[u8] = br#"{"format": "json", "version": 1}\n"#;
 
 #[derive(Debug)]
 pub struct Client {
+    addr: SocketAddr,
     socket: RefCell<UdpSocket>,
 }
 
@@ -32,16 +35,21 @@ impl Default for Client {
             .unwrap();
         let socket = UdpSocket::bind(&"0.0.0.0:0".parse().expect("invalid addr"))
             .expect("failed to bind to socket");
-        socket
-            .connect(&addr)
-            .expect(&format!("unable to connect to {}", addr));
-        Client::new(socket)
+
+        Client::new(socket, addr)
     }
 }
 
 impl Client {
-    pub fn new(socket: UdpSocket) -> Self {
+    pub fn new(
+        socket: UdpSocket,
+        addr: SocketAddr,
+    ) -> Self {
+        socket
+            .connect(&addr)
+            .expect(&format!("unable to connect to {}", addr));
         Client {
+            addr,
             socket: RefCell::new(socket),
         }
     }
@@ -54,7 +62,7 @@ impl Client {
         // todo rep error
         // https://github.com/tokio-rs/tokio/blob/master/examples/udp-client.rs#L44
         let bytes = serde_json::to_vec(&value).expect("failed to serialize");
-        let packet = [HEADER.as_bytes(), &bytes].concat();
+        let packet = [HEADER, &bytes].concat();
         self.socket.borrow_mut().poll_send(&packet).map(|_| ())
     }
 }
@@ -78,6 +86,12 @@ impl TraceId {
     }
 }
 
+impl Default for TraceId {
+    fn default() -> Self {
+        TraceId::new()
+    }
+}
+
 impl fmt::Display for TraceId {
     fn fmt(
         &self,
@@ -87,6 +101,38 @@ impl fmt::Display for TraceId {
             TraceId::New(seconds, bytes) => write!(f, "1-{:08x}-{:x}", seconds, Bytes(bytes)),
             TraceId::Rendered(value) => write!(f, "{}", value),
         }
+    }
+}
+
+struct TraceIdVisitor;
+
+impl<'de> de::Visitor<'de> for TraceIdVisitor {
+    type Value = TraceId;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string value")
+    }
+    fn visit_str<E>(self, value: &str) -> Result<TraceId, E>
+        where E: de::Error
+    {
+        Ok(TraceId::Rendered(value.into()))
+    }
+}
+
+impl ser::Serialize for TraceId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        serializer.serialize_str(&format!("{}", self))
+    }
+}
+
+
+impl<'de> de::Deserialize<'de> for TraceId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: de::Deserializer<'de>
+    {
+        deserializer.deserialize_f64(TraceIdVisitor)
     }
 }
 
@@ -117,8 +163,50 @@ impl fmt::Display for SegmentId {
     }
 }
 
-fn fractional_seconds(d: Duration) -> f64 {
-    d.as_secs() as f64 + (d.subsec_nanos() as f64 / 1_000_000_000.0)
+
+impl Default for SegmentId {
+    fn default() -> Self {
+        SegmentId::new()
+    }
+}
+
+struct SegmentIdVisitor;
+
+impl<'de> de::Visitor<'de> for SegmentIdVisitor {
+    type Value = SegmentId;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string value")
+    }
+    fn visit_str<E>(self, value: &str) -> Result<SegmentId, E>
+        where E: de::Error
+    {
+        Ok(SegmentId::Rendered(value.into()))
+    }
+}
+
+impl ser::Serialize for SegmentId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        serializer.serialize_str(&format!("{}", self))
+    }
+}
+
+
+impl<'de> de::Deserialize<'de> for SegmentId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where D: de::Deserializer<'de>
+    {
+        deserializer.deserialize_str(SegmentIdVisitor)
+    }
+}
+
+fn fractional_seconds() -> f64 {
+    let d = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    d.as_secs() as f64 + (d.subsec_nanos() as f64 / 1.0e9)
 }
 
 fn unix_seconds() -> u64 {
@@ -131,10 +219,10 @@ fn unix_seconds() -> u64 {
 // https://docs.aws.amazon.com/xray/latest/devguide/xray-api-sendingdata.html
 // https://docs.aws.amazon.com/xray/latest/devguide/xray-api-segmentdocuments.html
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Segment {
-    pub trace_id: Option<String>,
-    pub id: String,
+    pub trace_id: TraceId,
+    pub id: SegmentId,
     pub name: String,
     pub start_time: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -170,7 +258,17 @@ pub struct Segment {
     //pub subsegments: Option<Value>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+
+impl Segment {
+    pub fn begin<N>(name: N) -> Self where N: Into<String> {
+        Segment {
+            name: name.into(),
+            ..Segment::default()
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Cause {
     #[serde(skip_serializing_if = "Option::is_none")]
     working_directory: Option<String>,
@@ -179,7 +277,7 @@ pub struct Cause {
     //   exceptions: Vec<Exception>
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Http {
     #[serde(skip_serializing_if = "Option::is_none")]
     request: Option<Request>,
@@ -187,7 +285,7 @@ pub struct Http {
     response: Option<Response>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
     method: Option<String>,
@@ -203,7 +301,7 @@ pub struct Request {
     traced: Option<bool>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Response {
     status: Option<u16>,
     content_length: Option<u64>,
