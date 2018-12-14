@@ -2,20 +2,21 @@
 // Std
 use std::{
     cell::RefCell,
-    env, fmt,
+    env,
     net::SocketAddr,
     ops::Not,
     time::{SystemTime, UNIX_EPOCH},
 };
 
-// Third Party
-use rand::RngCore;
-use serde::{de, ser, Serializer};
-use serde_derive::{Deserialize, Serialize};
+// Third Partyialize};
 use tokio::net::UdpSocket;
 
 mod hexbytes;
-use crate::hexbytes::Bytes;
+mod segment_id;
+mod trace_id;
+
+use crate::{segment_id::SegmentId, trace_id::TraceId};
+use serde_derive::{Deserialize, Serialize};
 
 const HEADER: &[u8] = br#"{"format": "json", "version": 1}\n"#;
 
@@ -66,175 +67,12 @@ impl Client {
         self.socket.borrow_mut().poll_send(&packet).map(|_| ())
     }
 }
-/// Coorelates a string of spans together
-///
-/// Users need only refer to displayability
-/// a factory for generating these is provided.
-///
-///
-#[derive(Debug)]
-pub enum TraceId {
-    New(u64, [u8; 12]),
-    Rendered(String),
-}
-
-impl TraceId {
-    pub fn new() -> Self {
-        let mut buf = [0; 12];
-        rand::thread_rng().fill_bytes(&mut buf);
-        TraceId::New(unix_seconds(), buf)
-    }
-}
-
-impl Default for TraceId {
-    fn default() -> Self {
-        TraceId::new()
-    }
-}
-
-impl fmt::Display for TraceId {
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        match self {
-            TraceId::New(seconds, bytes) => write!(f, "1-{:08x}-{:x}", seconds, Bytes(bytes)),
-            TraceId::Rendered(value) => write!(f, "{}", value),
-        }
-    }
-}
-
-struct TraceIdVisitor;
-
-impl<'de> de::Visitor<'de> for TraceIdVisitor {
-    type Value = TraceId;
-
-    fn expecting(
-        &self,
-        formatter: &mut fmt::Formatter,
-    ) -> fmt::Result {
-        formatter.write_str("a string value")
-    }
-    fn visit_str<E>(
-        self,
-        value: &str,
-    ) -> Result<TraceId, E>
-    where
-        E: de::Error,
-    {
-        Ok(TraceId::Rendered(value.into()))
-    }
-}
-
-impl ser::Serialize for TraceId {
-    fn serialize<S>(
-        &self,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&format!("{}", self))
-    }
-}
-
-impl<'de> de::Deserialize<'de> for TraceId {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        deserializer.deserialize_f64(TraceIdVisitor)
-    }
-}
-
-/// Unique identifier of an operation within a trace
-#[derive(Debug)]
-pub enum SegmentId {
-    New([u8; 8]),
-    Rendered(String),
-}
-
-impl SegmentId {
-    pub fn new() -> Self {
-        let mut buf = [0; 8];
-        rand::thread_rng().fill_bytes(&mut buf);
-        SegmentId::New(buf)
-    }
-}
-
-impl fmt::Display for SegmentId {
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        match self {
-            SegmentId::New(bytes) => write!(f, "{:x}", Bytes(bytes)),
-            SegmentId::Rendered(value) => write!(f, "{}", value),
-        }
-    }
-}
-
-impl Default for SegmentId {
-    fn default() -> Self {
-        SegmentId::new()
-    }
-}
-
-struct SegmentIdVisitor;
-
-impl<'de> de::Visitor<'de> for SegmentIdVisitor {
-    type Value = SegmentId;
-
-    fn expecting(
-        &self,
-        formatter: &mut fmt::Formatter,
-    ) -> fmt::Result {
-        formatter.write_str("a string value")
-    }
-    fn visit_str<E>(
-        self,
-        value: &str,
-    ) -> Result<SegmentId, E>
-    where
-        E: de::Error,
-    {
-        Ok(SegmentId::Rendered(value.into()))
-    }
-}
-
-impl ser::Serialize for SegmentId {
-    fn serialize<S>(
-        &self,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&format!("{}", self))
-    }
-}
-
-impl<'de> de::Deserialize<'de> for SegmentId {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        deserializer.deserialize_str(SegmentIdVisitor)
-    }
-}
 
 fn fractional_seconds() -> f64 {
     let d = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
     d.as_secs() as f64 + (f64::from(d.subsec_nanos()) / 1.0e9)
-}
-
-fn unix_seconds() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
 }
 
 // https://docs.aws.amazon.com/xray/latest/devguide/xray-api-sendingdata.html
