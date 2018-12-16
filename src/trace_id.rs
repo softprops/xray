@@ -82,7 +82,7 @@ impl<'de> de::Deserialize<'de> for TraceId {
     where
         D: de::Deserializer<'de>,
     {
-        deserializer.deserialize_f64(TraceIdVisitor)
+        deserializer.deserialize_str(TraceIdVisitor)
     }
 }
 

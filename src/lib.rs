@@ -4,21 +4,25 @@ use std::{
     cell::RefCell,
     env,
     net::SocketAddr,
-    ops::Not,
-    time::{SystemTime, UNIX_EPOCH},
+    ops::Not
 };
 
-// Third Partyialize};
+// Third Party;
 use tokio::net::UdpSocket;
 
+mod epoch_seconds;
+mod error;
 mod hexbytes;
 mod segment_id;
 mod trace_id;
 
-use crate::{segment_id::SegmentId, trace_id::TraceId};
+use crate::epoch_seconds::EpochSeconds;
+use crate::{error::Error, segment_id::SegmentId, trace_id::TraceId};
 use serde_derive::{Deserialize, Serialize};
 
 const HEADER: &[u8] = br#"{"format": "json", "version": 1}\n"#;
+
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub struct Client {
@@ -29,51 +33,50 @@ pub struct Client {
 impl Default for Client {
     fn default() -> Self {
         // https://docs.aws.amazon.com/lambda/latest/dg/lambda-x-ray.html
-        // todo rep error
-        let addr = env::var("AWS_XRAY_DAEMON_ADDRESS")
-            .unwrap_or_else(|_| "127.0.0.1:2000".into())
-            .parse()
-            .unwrap();
-        let socket = UdpSocket::bind(&"0.0.0.0:0".parse().expect("invalid addr"))
-            .expect("failed to bind to socket");
+        // todo documment error handling
+        let addr: SocketAddr = env::var("AWS_XRAY_DAEMON_ADDRESS")
+            .map_err(|_| ())
+            .and_then(|value| value.parse::<SocketAddr>().map_err(|_| ()))
+            .unwrap_or_else(|_| {
+                log::trace!("No valid `AWS_XRAY_DAEMON_ADDRESS` env variable detected falling back on default");
+                ([127, 0, 0, 1], 2000).into()
+            });
 
-        Client::new(socket, addr)
+        Client::new(addr).unwrap()
     }
 }
 
 impl Client {
-    pub fn new(
-        socket: UdpSocket,
-        addr: SocketAddr,
-    ) -> Self {
-        socket
-            .connect(&addr)
-            .expect(&format!("unable to connect to {}", addr));
-        Client {
-            addr,
-            socket: RefCell::new(socket),
-        }
+    pub fn new(addr: SocketAddr) -> Result<Self> {
+        let socket = RefCell::new(
+            UdpSocket::bind(&([0, 0, 0, 0], 0).into()).expect("Failed to bind to udp socket"),
+        );
+
+        socket.borrow_mut().connect(&addr)?;
+        Ok(Client { addr, socket })
     }
 
     /// send a segment to the xray daemon this client is connected to
     pub fn send(
         &self,
-        value: Segment,
-    ) -> std::io::Result<()> {
+        value: &Segment,
+    ) -> Result<()> {
         // todo rep error
         // https://github.com/tokio-rs/tokio/blob/master/examples/udp-client.rs#L44
-        let bytes = serde_json::to_vec(&value).expect("failed to serialize");
+        let bytes = serde_json::to_vec(&value)?;
         let packet = [HEADER, &bytes].concat();
-        self.socket.borrow_mut().poll_send(&packet).map(|_| ())
+        self.socket.borrow_mut().poll_send(&packet)?;
+        Ok(())
     }
 }
 
-fn fractional_seconds() -> f64 {
+
+/*pub fn epoch_seconds() -> f64 {
     let d = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
     d.as_secs() as f64 + (f64::from(d.subsec_nanos()) / 1.0e9)
-}
+}*/
 
 // https://docs.aws.amazon.com/xray/latest/devguide/xray-api-sendingdata.html
 // https://docs.aws.amazon.com/xray/latest/devguide/xray-api-segmentdocuments.html
@@ -83,9 +86,9 @@ pub struct Segment {
     pub trace_id: TraceId,
     pub id: SegmentId,
     pub name: String,
-    pub start_time: u64,
+    pub start_time: EpochSeconds,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_time: Option<u64>,
+    pub end_time: Option<EpochSeconds>,
     #[serde(skip_serializing_if = "Not::not")]
     pub in_progress: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
