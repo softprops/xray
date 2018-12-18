@@ -1,29 +1,31 @@
+#![warn(missing_docs)]
+//#![deny(warnings)]
 //! Provides a client interface for [AWS X-Ray](https://aws.amazon.com/xray/)
 // Std
 use std::{
-    cell::RefCell,
-    env,
-    net::SocketAddr,
-    ops::Not
+    cell::RefCell, collections::HashMap, env, net::SocketAddr, ops::Not,
+    result::Result as StdResult,
 };
 
 // Third Party;
 use tokio::net::UdpSocket;
 
-mod epoch_seconds;
+mod epoch;
 mod error;
 mod hexbytes;
 mod segment_id;
 mod trace_id;
 
-use crate::epoch_seconds::EpochSeconds;
-use crate::{error::Error, segment_id::SegmentId, trace_id::TraceId};
+pub use crate::{epoch::Seconds, error::Error, segment_id::SegmentId, trace_id::TraceId};
 use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
 
 const HEADER: &[u8] = br#"{"format": "json", "version": 1}\n"#;
 
-pub type Result<T> = std::result::Result<T, Error>;
+/// Type alias for Results which may return `xray::Errors`
+pub type Result<T> = StdResult<T, Error>;
 
+/// X-Ray daemon client interface
 #[derive(Debug)]
 pub struct Client {
     addr: SocketAddr,
@@ -47,6 +49,8 @@ impl Default for Client {
 }
 
 impl Client {
+    /// Return a new X-Ray client connected
+    /// to the provided `addr`
     pub fn new(addr: SocketAddr) -> Result<Self> {
         let socket = RefCell::new(
             UdpSocket::bind(&([0, 0, 0, 0], 0).into()).expect("Failed to bind to udp socket"),
@@ -70,7 +74,6 @@ impl Client {
     }
 }
 
-
 /*pub fn epoch_seconds() -> f64 {
     let d = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -81,25 +84,40 @@ impl Client {
 // https://docs.aws.amazon.com/xray/latest/devguide/xray-api-sendingdata.html
 // https://docs.aws.amazon.com/xray/latest/devguide/xray-api-segmentdocuments.html
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+/// Description of an internal application operation
+/// which may be an extension of an external operation
+#[derive(Debug, Default, Serialize)]
 pub struct Segment {
+    /// A unique identifier that connects all segments and subsegments originating from a single client request.
     pub trace_id: TraceId,
+    ///  A 64-bit identifier for the segment, unique among segments in the same trace, in 16 hexadecimal digits.
     pub id: SegmentId,
+    /// The logical name of the service that handled the request, up to 200 characters. For example, your application's name or domain name. Names can contain Unicode letters, numbers, and whitespace, and the following symbols: _, ., :, /, %, &, #, =, +, \, -, @
     pub name: String,
-    pub start_time: EpochSeconds,
+    ///  number that is the time the segment was created, in floating point seconds in epoch time.
+    pub start_time: Seconds,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_time: Option<EpochSeconds>,
+    ///  number that is the time the segment was closed.
+    pub end_time: Option<Seconds>,
     #[serde(skip_serializing_if = "Not::not")]
+    ///  boolean, set to true instead of specifying an end_time to record that a segment is started, but is not complete. Send an in-progress segment when your application receives a request that will take a long time to serve, to trace the request receipt. When the response is sent, send the complete segment to overwrite the in-progress segment. Only send one complete segment, and one or zero in-progress segments, per request.
     pub in_progress: bool,
+    /// A subsegment ID you specify if the request originated from an instrumented application. The X-Ray SDK adds the parent subsegment ID to the tracing header for downstream HTTP calls.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
+    /// boolean indicating that a server error occurred (response status code was 5XX Server Error).
+    #[serde(skip_serializing_if = "Not::not")]
     pub fault: bool,
+    /// boolean indicating that a client error occurred (response status code was 4XX Client Error).
+    #[serde(skip_serializing_if = "Not::not")]
     pub error: bool,
+    /// boolean indicating that a request was throttled (response status code was 429 Too Many Requests).
+    #[serde(skip_serializing_if = "Not::not")]
     pub throttle: bool,
+    ///  error fields that indicate an error occurred and that include information about the exception that caused the error.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cause: Option<Cause>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub resource_arn: Option<String>,
+    /// The type of AWS resource running your application.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub origin: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -112,12 +130,40 @@ pub struct Segment {
     pub precursor_ids: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub http: Option<Http>,
-    //pub aws:  ???,
-    //pub service: Option<Service>,
-    //pub SQLData: Option<Sql>,
-    //pub annotations: Option<BTreeMap<String, Value>>,
-    //pub metadata: Option<BTreeMap<String, Value>>,
-    //pub subsegments: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<HashMap<String, Annotation>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, Value>>, //pub aws:  ???,
+                                                  //pub service: Option<Service>,
+                                                  //pub SQLData: Option<Sql>,
+                                                  //pub annotations: Option<BTreeMap<String, Value>>,
+                                                  //pub metadata: Option<BTreeMap<String, Value>>,
+                                                  //pub subsegments: Option<Value>
+}
+
+impl Default for Annotation {
+    fn default() -> Self {
+        Annotation::String("".into())
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum Annotation {
+    String(String),
+    Number(usize),
+    Bool(bool),
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum Cause {
+    Name(String),
+    Description {
+        working_directory: String,
+        paths: Vec<String>,
+        // exceptions: Vec<???>
+    },
 }
 
 impl Segment {
@@ -133,15 +179,6 @@ impl Segment {
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
-pub struct Cause {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    working_directory: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    paths: Vec<String>,
-    //   exceptions: Vec<Exception>
-}
-
-#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Http {
     #[serde(skip_serializing_if = "Option::is_none")]
     request: Option<Request>,
@@ -149,10 +186,13 @@ pub struct Http {
     response: Option<Response>,
 }
 
+///  Information about a request.
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Request {
+    /// The request method. For example, GET.
     #[serde(skip_serializing_if = "Option::is_none")]
     method: Option<String>,
+    /// The full URL of the request, compiled from the protocol, hostname, and path of the request.
     #[serde(skip_serializing_if = "Option::is_none")]
     url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -165,17 +205,32 @@ pub struct Request {
     traced: Option<bool>,
 }
 
+///  Information about a response.
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Response {
+    /// number indicating the HTTP status of the response.
     status: Option<u16>,
+    /// number indicating the length of the response body in bytes.
     content_length: Option<u64>,
 }
 
 #[cfg(test)]
 mod tests {
+    use super::{Seconds, Segment, SegmentId, TraceId};
 
     #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+    fn segments_serialize() {
+        println!(
+            "{}",
+            serde_json::to_string(&Segment {
+                name: "Scorekeep".into(),
+                id: SegmentId::Rendered("70de5b6f19ff9a0a".into()),
+                start_time: Seconds(1_478_293_361.271),
+                trace_id: TraceId::Rendered("1-581cf771-a006649127e371903a2de979".into()),
+                end_time: Some(Seconds(1_478_293_361.449)),
+                ..Segment::default()
+            })
+            .expect("failed to serialize")
+        )
     }
 }

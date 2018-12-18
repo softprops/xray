@@ -1,17 +1,14 @@
-use crate::hexbytes::Bytes;
+use crate::{epoch::Seconds, hexbytes::Bytes};
 use rand::RngCore;
 use serde::{de, ser, Serializer};
-use std::{
-    fmt,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::fmt;
 /// Coorelates a string of spans together
 ///
 /// Users need only refer to displayability
 /// a factory for generating these is provided.
 ///
 ///
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TraceId {
     New(u64, [u8; 12]),
     Rendered(String),
@@ -21,7 +18,7 @@ impl TraceId {
     pub fn new() -> Self {
         let mut buf = [0; 12];
         rand::thread_rng().fill_bytes(&mut buf);
-        TraceId::New(unix_seconds(), buf)
+        TraceId::New(Seconds::now().trunc(), buf)
     }
 }
 
@@ -84,11 +81,4 @@ impl<'de> de::Deserialize<'de> for TraceId {
     {
         deserializer.deserialize_str(TraceIdVisitor)
     }
-}
-
-fn unix_seconds() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
 }

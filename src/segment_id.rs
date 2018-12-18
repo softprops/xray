@@ -4,7 +4,7 @@ use serde::{de, ser, Serializer};
 use std::fmt;
 
 /// Unique identifier of an operation within a trace
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum SegmentId {
     New([u8; 8]),
     Rendered(String),
