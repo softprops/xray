@@ -1,0 +1,12 @@
+[package]
+name = "xray-header"
+version = "0.0.0"
+authors = ["softprops <d.tangren@gmail.com>"]
+edition = "2018"
+description = "AWS X-Ray daemon client for Rust"
+license = "MIT"
+keywords = ["aws", "x-ray", "tracing", "distributed-tracing"]
+readme = "../README.md"
+documentation = "https://docs.rs/xray-header"
+homepage = "https://github.com/softprops/xray"
+repository = "https://github.com/softprops/xray"
