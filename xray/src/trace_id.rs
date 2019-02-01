@@ -4,17 +4,20 @@ use serde::{de, ser, Serializer};
 use std::fmt;
 /// Coorelates a string of spans together
 ///
-/// Users need only refer to displayability
+/// Users need only refer to displability
 /// a factory for generating these is provided.
 ///
 ///
 #[derive(Debug, PartialEq)]
 pub enum TraceId {
+    #[doc(hidden)]
     New(u64, [u8; 12]),
+    #[doc(hidden)]
     Rendered(String),
 }
 
 impl TraceId {
+    /// Generate a new random trace ID
     pub fn new() -> Self {
         let mut buf = [0; 12];
         rand::thread_rng().fill_bytes(&mut buf);

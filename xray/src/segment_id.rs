@@ -6,11 +6,14 @@ use std::fmt;
 /// Unique identifier of an operation within a trace
 #[derive(Debug, PartialEq)]
 pub enum SegmentId {
+    #[doc(hidden)]
     New([u8; 8]),
+    #[doc(hidden)]
     Rendered(String),
 }
 
 impl SegmentId {
+    /// Generate a new random segment ID
     pub fn new() -> Self {
         let mut buf = [0; 8];
         rand::thread_rng().fill_bytes(&mut buf);
