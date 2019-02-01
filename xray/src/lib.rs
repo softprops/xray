@@ -74,13 +74,6 @@ impl Client {
     }
 }
 
-/*pub fn epoch_seconds() -> f64 {
-    let d = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    d.as_secs() as f64 + (f64::from(d.subsec_nanos()) / 1.0e9)
-}*/
-
 // https://docs.aws.amazon.com/xray/latest/devguide/xray-api-sendingdata.html
 // https://docs.aws.amazon.com/xray/latest/devguide/xray-api-segmentdocuments.html
 
@@ -94,10 +87,10 @@ pub struct Segment {
     pub id: SegmentId,
     /// The logical name of the service that handled the request, up to 200 characters. For example, your application's name or domain name. Names can contain Unicode letters, numbers, and whitespace, and the following symbols: _, ., :, /, %, &, #, =, +, \, -, @
     pub name: String,
-    ///  number that is the time the segment was created, in floating point seconds in epoch time.
+    /// Number that is the time the segment was created, in floating point seconds in epoch time.
     pub start_time: Seconds,
     #[serde(skip_serializing_if = "Option::is_none")]
-    ///  number that is the time the segment was closed.
+    /// Number that is the time the segment was closed.
     pub end_time: Option<Seconds>,
     #[serde(skip_serializing_if = "Not::not")]
     ///  boolean, set to true instead of specifying an end_time to record that a segment is started, but is not complete. Send an in-progress segment when your application receives a request that will take a long time to serve, to trace the request receipt. When the response is sent, send the complete segment to overwrite the in-progress segment. Only send one complete segment, and one or zero in-progress segments, per request.
@@ -105,10 +98,10 @@ pub struct Segment {
     /// A subsegment ID you specify if the request originated from an instrumented application. The X-Ray SDK adds the parent subsegment ID to the tracing header for downstream HTTP calls.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_id: Option<String>,
-    /// boolean indicating that a server error occurred (response status code was 5XX Server Error).
+    /// Indicates that a server error occurred (response status code was 5XX Server Error).
     #[serde(skip_serializing_if = "Not::not")]
     pub fault: bool,
-    /// boolean indicating that a client error occurred (response status code was 4XX Client Error).
+    /// Indicates that a client error occurred (response status code was 4XX Client Error).
     #[serde(skip_serializing_if = "Not::not")]
     pub error: bool,
     /// boolean indicating that a request was throttled (response status code was 429 Too Many Requests).
@@ -124,8 +117,12 @@ pub struct Segment {
     pub tpe: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub namespace: Option<String>,
+    ///
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user: Option<String>,
+    ///
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource_arn: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub precursor_ids: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -133,12 +130,46 @@ pub struct Segment {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub annotations: Option<HashMap<String, Annotation>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<HashMap<String, Value>>, //pub aws:  ???,
-                                                  //pub service: Option<Service>,
-                                                  //pub SQLData: Option<Sql>,
-                                                  //pub annotations: Option<BTreeMap<String, Value>>,
-                                                  //pub metadata: Option<BTreeMap<String, Value>>,
-                                                  //pub subsegments: Option<Value>
+    pub metadata: Option<HashMap<String, Value>>,
+    pub aws: Option<Aws>,
+    pub service: Option<Service>,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct Service {
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct Aws {
+    pub account_id: Option<String>,
+    pub ecs: Option<Ecs>,
+    pub ec2: Option<Ec2>,
+    pub elastic_beanstalk: Option<ElasticBeanstalk>,
+    pub tracing: Option<Tracing>,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct Ecs {
+    pub container: Option<String>,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct Ec2 {
+    pub instance_id: Option<String>,
+    pub availability_zone: Option<String>,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct ElasticBeanstalk {
+    pub environment_name: Option<String>,
+    pub version_label: Option<String>,
+    pub deployment_id: Option<usize>,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct Tracing {
+    pub sdk: Option<String>,
 }
 
 impl Default for Annotation {
@@ -147,26 +178,53 @@ impl Default for Annotation {
     }
 }
 
+/// A value type which may be used for
+/// filter querying
 #[derive(Debug, Serialize)]
 #[serde(untagged)]
 pub enum Annotation {
+    /// A string value
     String(String),
+    /// A numberic value
     Number(usize),
+    /// A boolean value
     Bool(bool),
 }
 
 #[derive(Debug, Serialize)]
+pub struct Exception {
+    pub id: String,
+    pub messages: Option<String>,
+    pub remote: Option<bool>,
+    pub truncated: Option<usize>,
+    pub skipped: Option<usize>,
+    pub cause: Option<String>,
+    pub stack: Vec<StackFrame>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct StackFrame {
+    pub path: Option<String>,
+    pub line: Option<String>,
+    pub label: Option<String>,
+}
+
+/// Represents the cause of an errror
+#[derive(Debug, Serialize)]
 #[serde(untagged)]
 pub enum Cause {
+    /// The name of an error
     Name(String),
+    /// A description of an error
     Description {
         working_directory: String,
         paths: Vec<String>,
-        // exceptions: Vec<???>
+        exceptions: Vec<Exception>,
     },
 }
 
 impl Segment {
+    /// Begins a new segment
     pub fn begin<N>(name: N) -> Self
     where
         N: Into<String>,
@@ -178,6 +236,7 @@ impl Segment {
     }
 }
 
+/// Describes an http request/response cycle
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Http {
     #[serde(skip_serializing_if = "Option::is_none")]
