@@ -22,7 +22,10 @@ impl SegmentId {
 }
 
 impl fmt::Display for SegmentId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         match self {
             SegmentId::New(bytes) => write!(f, "{:x}", Bytes(bytes)),
             SegmentId::Rendered(value) => write!(f, "{}", value),
@@ -41,10 +44,16 @@ struct SegmentIdVisitor;
 impl<'de> de::Visitor<'de> for SegmentIdVisitor {
     type Value = SegmentId;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn expecting(
+        &self,
+        formatter: &mut fmt::Formatter,
+    ) -> fmt::Result {
         formatter.write_str("a string value")
     }
-    fn visit_str<E>(self, value: &str) -> Result<SegmentId, E>
+    fn visit_str<E>(
+        self,
+        value: &str,
+    ) -> Result<SegmentId, E>
     where
         E: de::Error,
     {
@@ -53,7 +62,10 @@ impl<'de> de::Visitor<'de> for SegmentIdVisitor {
 }
 
 impl ser::Serialize for SegmentId {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {

@@ -32,7 +32,10 @@ impl Default for TraceId {
 }
 
 impl fmt::Display for TraceId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         match self {
             TraceId::New(seconds, bytes) => write!(f, "1-{:08x}-{:x}", seconds, Bytes(bytes)),
             TraceId::Rendered(value) => write!(f, "{}", value),
@@ -45,10 +48,16 @@ struct TraceIdVisitor;
 impl<'de> de::Visitor<'de> for TraceIdVisitor {
     type Value = TraceId;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn expecting(
+        &self,
+        formatter: &mut fmt::Formatter,
+    ) -> fmt::Result {
         formatter.write_str("a string value")
     }
-    fn visit_str<E>(self, value: &str) -> Result<TraceId, E>
+    fn visit_str<E>(
+        self,
+        value: &str,
+    ) -> Result<TraceId, E>
     where
         E: de::Error,
     {
@@ -57,7 +66,10 @@ impl<'de> de::Visitor<'de> for TraceIdVisitor {
 }
 
 impl ser::Serialize for TraceId {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
