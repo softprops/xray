@@ -10,3 +10,6 @@ readme = "../README.md"
 documentation = "https://docs.rs/xray-header"
 homepage = "https://github.com/softprops/xray"
 repository = "https://github.com/softprops/xray"
+
+[dependencies]
+xray = { version = "0.0.0", path = "../xray" }

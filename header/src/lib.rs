@@ -6,8 +6,7 @@ use std::{
     fmt::{self, Display},
     str::FromStr,
 };
-
-pub const NAME: &str = "X-Amzn-Trace-Id";
+use xray::{SegmentId, TraceId};
 
 #[derive(PartialEq, Debug)]
 pub enum SamplingDecision {
@@ -64,10 +63,50 @@ impl Default for SamplingDecision {
 /// Parsed representation of `X-Amzn-Trace-Id` request header
 #[derive(PartialEq, Debug, Default)]
 pub struct Header {
-    trace_id: String,
-    parent_id: Option<String>,
+    trace_id: TraceId,
+    parent_id: Option<SegmentId>,
     sampling_decision: SamplingDecision,
     additional_data: HashMap<String, String>,
+}
+
+impl Header {
+    pub const NAME: &'static str = "X-Amzn-Trace-Id";
+
+    pub fn new(trace_id: TraceId) -> Self {
+        Header {
+            trace_id,
+            ..Header::default()
+        }
+    }
+
+    pub fn with_parent_id(
+        &mut self,
+        parent_id: SegmentId,
+    ) -> &mut Self {
+        self.parent_id = Some(parent_id);
+        self
+    }
+
+    pub fn with_sampling_decision(
+        &mut self,
+        decision: SamplingDecision,
+    ) -> &mut Self {
+        self.sampling_decision = decision;
+        self
+    }
+
+    pub fn with_data<K, V>(
+        &mut self,
+        key: K,
+        value: V,
+    ) -> &mut Self
+    where
+        K: Into<String>,
+        V: Into<String>,
+    {
+        self.additional_data.insert(key.into(), value.into());
+        self
+    }
 }
 
 impl FromStr for Header {
@@ -76,9 +115,9 @@ impl FromStr for Header {
         s.split(';')
             .try_fold(Header::default(), |mut header, line| {
                 if line.starts_with("Root=") {
-                    header.trace_id = line[5..].into()
+                    header.trace_id = TraceId::Rendered(line[5..].into())
                 } else if line.starts_with("Parent=") {
-                    header.parent_id = Some(line[7..].into())
+                    header.parent_id = Some(SegmentId::Rendered(line[7..].into()))
                 } else if line.starts_with("Sampled=") {
                     header.sampling_decision = line.into();
                 } else if !line.starts_with("Self=") {
@@ -121,8 +160,8 @@ mod tests {
             "Root=1-5759e988-bd862e3fe1be46a994272793;Parent=53995c3f42cd8ad8;Sampled=1"
                 .parse::<Header>(),
             Ok(Header {
-                trace_id: "1-5759e988-bd862e3fe1be46a994272793".into(),
-                parent_id: Some("53995c3f42cd8ad8".into()),
+                trace_id: TraceId::Rendered("1-5759e988-bd862e3fe1be46a994272793".into()),
+                parent_id: Some(SegmentId::Rendered("53995c3f42cd8ad8".into())),
                 sampling_decision: SamplingDecision::Sampled,
                 ..Header::default()
             })
@@ -133,7 +172,7 @@ mod tests {
         assert_eq!(
             "Root=1-5759e988-bd862e3fe1be46a994272793;Sampled=1".parse::<Header>(),
             Ok(Header {
-                trace_id: "1-5759e988-bd862e3fe1be46a994272793".into(),
+                trace_id: TraceId::Rendered("1-5759e988-bd862e3fe1be46a994272793".into()),
                 parent_id: None,
                 sampling_decision: SamplingDecision::Sampled,
                 ..Header::default()
@@ -144,7 +183,7 @@ mod tests {
     #[test]
     fn displays_as_header() {
         let header = Header {
-            trace_id: "1-5759e988-bd862e3fe1be46a994272793".into(),
+            trace_id: TraceId::Rendered("1-5759e988-bd862e3fe1be46a994272793".into()),
             ..Header::default()
         };
         assert_eq!(
