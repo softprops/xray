@@ -57,9 +57,7 @@ impl Client {
     /// Return a new X-Ray client connected
     /// to the provided `addr`
     pub fn new(addr: SocketAddr) -> Result<Self> {
-        let socket = Arc::new(
-            UdpSocket::bind(&[([0, 0, 0, 0], 0).into()][..]).expect("Failed to bind to udp socket"),
-        );
+        let socket = Arc::new(UdpSocket::bind(&[([0, 0, 0, 0], 0).into()][..])?);
 
         socket.set_nonblocking(true)?;
         socket.connect(&addr)?;
