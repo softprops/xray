@@ -1,14 +1,18 @@
 #![warn(missing_docs)]
 //#![deny(warnings)]
 //! Provides a client interface for [AWS X-Ray](https://aws.amazon.com/xray/)
-// Std
-use std::{
-    cell::RefCell, collections::HashMap, env, net::SocketAddr, ops::Not,
-    result::Result as StdResult,
-};
 
-// Third Party;
-use tokio::net::UdpSocket;
+use serde::Serialize;
+use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
+use std::{
+    collections::HashMap,
+    env,
+    net::{SocketAddr, UdpSocket},
+    ops::Not,
+    result::Result as StdResult,
+    sync::Arc,
+};
 
 mod epoch;
 mod error;
@@ -17,8 +21,6 @@ mod segment_id;
 mod trace_id;
 
 pub use crate::{epoch::Seconds, error::Error, segment_id::SegmentId, trace_id::TraceId};
-use serde_derive::{Deserialize, Serialize};
-use serde_json::Value;
 
 const HEADER: &[u8] = br#"{"format": "json", "version": 1}\n"#;
 
@@ -29,7 +31,7 @@ pub type Result<T> = StdResult<T, Error>;
 #[derive(Debug)]
 pub struct Client {
     addr: SocketAddr,
-    socket: RefCell<UdpSocket>,
+    socket: Arc<UdpSocket>,
 }
 
 impl Default for Client {
@@ -55,24 +57,28 @@ impl Client {
     /// Return a new X-Ray client connected
     /// to the provided `addr`
     pub fn new(addr: SocketAddr) -> Result<Self> {
-        let socket = RefCell::new(
-            UdpSocket::bind(&([0, 0, 0, 0], 0).into()).expect("Failed to bind to udp socket"),
+        let socket = Arc::new(
+            UdpSocket::bind(&[([0, 0, 0, 0], 0).into()][..]).expect("Failed to bind to udp socket"),
         );
 
-        socket.borrow_mut().connect(&addr)?;
+        socket.set_nonblocking(true)?;
+        socket.connect(&addr)?;
         Ok(Client { addr, socket })
     }
 
     /// send a segment to the xray daemon this client is connected to
-    pub fn send(
+    pub fn send<S>(
         &self,
-        value: &Segment,
-    ) -> Result<()> {
+        value: S,
+    ) -> Result<()>
+    where
+        S: Serialize,
+    {
         // todo rep error
         // https://github.com/tokio-rs/tokio/blob/master/examples/udp-client.rs#L44
         let bytes = serde_json::to_vec(&value)?;
         let packet = [HEADER, &bytes].concat();
-        self.socket.borrow_mut().poll_send(&packet)?;
+        self.socket.send(&packet)?;
         Ok(())
     }
 }
@@ -175,6 +181,7 @@ pub struct Ec2 {
     pub availability_zone: Option<String>,
 }
 
+/// Information about an Elastic Beanstalk environment. You can find this information in a file named /var/elasticbeanstalk/xray/environment.conf on the latest Elastic Beanstalk platforms.
 #[derive(Debug, Default, Serialize)]
 pub struct ElasticBeanstalk {
     /// The name of the environment.
@@ -255,15 +262,22 @@ pub enum Cause {
 }
 
 impl Segment {
-    /// Begins a new segment
+    /// Begins a new named segment
+    ///
+    /// A segment's name should match the domain name or logical name of the service that generates the segment. However, this is not enforced. Any application that has permission to PutTraceSegments can send segments with any name.
     pub fn begin<N>(name: N) -> Self
     where
         N: Into<String>,
     {
         Segment {
-            name: name.into(),
+            name: name.into()[..200].into(),
             ..Segment::default()
         }
+    }
+
+    pub fn end(&mut self) -> &mut Self {
+        self.end_time = Some(Seconds::now());
+        self
     }
 }
 
@@ -310,6 +324,31 @@ pub struct Response {
     content_length: Option<u64>,
 }
 
+impl Subsegment {
+    /// Create a new subsegment
+    pub fn begin<N>(
+        trace_id: TraceId,
+        parent_id: Option<SegmentId>,
+        name: N,
+    ) -> Self
+    where
+        N: Into<String>,
+    {
+        Subsegment {
+            name: name.into()[..200].into(),
+            trace_id: Some(trace_id),
+            parent_id,
+            ..Subsegment::default()
+        }
+    }
+
+    pub fn end(&mut self) -> &mut Self {
+        self.end_time = Some(Seconds::now());
+        self
+    }
+}
+
+/// Record information about the AWS services and resources that your application accesses. X-Ray uses this information to create inferred segments that represent the downstream services in your service map.
 #[derive(Debug, Default, Serialize)]
 pub struct Subsegment {
     /// The logical name of the subsegment. For downstream calls, name the subsegment after the resource or service called. For custom subsegments, name the subsegment after the code that it instruments (e.g., a function name).
@@ -340,7 +379,9 @@ pub struct Subsegment {
     #[serde(skip_serializing_if = "Not::not")]
     pub throttled: bool,
     /// aws for AWS SDK calls; remote for other downstream calls.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub namespace: Option<String>,
+    ///
     #[serde(skip_serializing_if = "Option::is_none")]
     pub traced: Option<bool>,
     /// array of subsegment IDs that identifies subsegments with the same parent that completed prior to this subsegment.
