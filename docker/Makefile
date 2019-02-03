@@ -1,7 +1,7 @@
-xray-build:
+build:
 	@docker build -t xray .
 
-xray-run: xray-build
+run: build
 	@docker run \
 			--rm \
       --attach STDOUT \
