@@ -16,11 +16,14 @@ use std::{
 
 mod epoch;
 mod error;
+mod header;
 mod hexbytes;
 mod segment_id;
 mod trace_id;
 
-pub use crate::{epoch::Seconds, error::Error, segment_id::SegmentId, trace_id::TraceId};
+pub use crate::{
+    epoch::Seconds, error::Error, header::Header, segment_id::SegmentId, trace_id::TraceId,
+};
 
 const HEADER: &[u8] = br#"{"format": "json", "version": 1}\n"#;
 

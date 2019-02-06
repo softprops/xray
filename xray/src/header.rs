@@ -1,12 +1,12 @@
 //! X-Ray [tracing header](https://docs.aws.amazon.com/xray/latest/devguide/xray-concepts.html?shortFooter=true#xray-concepts-tracingheader)
 //! parser
 
+use crate::{SegmentId, TraceId};
 use std::{
     collections::HashMap,
     fmt::{self, Display},
     str::FromStr,
 };
-use xray::{SegmentId, TraceId};
 
 #[derive(PartialEq, Debug)]
 pub enum SamplingDecision {
