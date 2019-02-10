@@ -138,6 +138,7 @@ pub enum Annotation {
     Bool(bool),
 }
 
+/// Detailed representation of an exception
 #[derive(Debug, Serialize)]
 pub struct Exception {
     /// A 64-bit identifier for the exception, unique among segments in the same trace, in 16 hexadecimal digits.
@@ -156,6 +157,7 @@ pub struct Exception {
     pub stack: Vec<StackFrame>,
 }
 
+/// A summary of a single operation within a stack trace
 #[derive(Debug, Serialize)]
 pub struct StackFrame {
     /// The relative path to the file.
@@ -197,7 +199,7 @@ impl Segment {
         }
     }
 
-    /// End the span by assigning its end_time
+    /// End the segment by assigning its end_time
     pub fn end(&mut self) -> &mut Self {
         self.end_time = Some(Seconds::now());
         self
@@ -265,6 +267,7 @@ impl Subsegment {
         }
     }
 
+    /// End the subsegment by assigning its end_time
     pub fn end(&mut self) -> &mut Self {
         self.end_time = Some(Seconds::now());
         self
