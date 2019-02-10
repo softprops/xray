@@ -62,8 +62,10 @@ pub struct Segment {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<HashMap<String, Value>>,
     /// aws object with information about the AWS resource on which your application served the request.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub aws: Option<Aws>,
     /// An object with information about your application.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub service: Option<Service>,
 }
 
@@ -71,6 +73,7 @@ pub struct Segment {
 #[derive(Debug, Default, Serialize)]
 pub struct Service {
     /// A string that identifies the version of your application that served the request.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
 }
 
@@ -78,27 +81,35 @@ pub struct Service {
 #[derive(Debug, Default, Serialize)]
 pub struct Aws {
     ///  If your application sends segments to a different AWS account, record the ID of the account running your application.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub account_id: Option<String>,
     ///  Information about an Amazon ECS container.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ecs: Option<Ecs>,
     ///  Information about an EC2 instance.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ec2: Option<Ec2>,
     /// Information about an Elastic Beanstalk environment. You can find this information in a file named /var/elasticbeanstalk/xray/environment.conf on the latest Elastic Beanstalk platforms.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub elastic_beanstalk: Option<ElasticBeanstalk>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub tracing: Option<Tracing>,
 }
 
 #[derive(Debug, Default, Serialize)]
 pub struct Ecs {
     /// The container ID of the container running your application.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub container: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize)]
 pub struct Ec2 {
     /// The instance ID of the EC2 instance.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub instance_id: Option<String>,
     /// The Availability Zone in which the instance is running.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub availability_zone: Option<String>,
 }
 
@@ -106,10 +117,13 @@ pub struct Ec2 {
 #[derive(Debug, Default, Serialize)]
 pub struct ElasticBeanstalk {
     /// The name of the environment.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub environment_name: Option<String>,
     ///  The name of the application version that is currently deployed to the instance that served the request.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub version_label: Option<String>,
     /// number indicating the ID of the last successful deployment to the instance that served the request.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub deployment_id: Option<usize>,
 }
 
@@ -144,14 +158,19 @@ pub struct Exception {
     /// A 64-bit identifier for the exception, unique among segments in the same trace, in 16 hexadecimal digits.
     pub id: String,
     /// The exception message.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub messages: Option<String>,
     /// The exception type.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub remote: Option<bool>,
     /// integer indicating the number of stack frames that are omitted from the stack.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub truncated: Option<usize>,
     ///  integer indicating the number of exceptions that were skipped between this exception and its child, that is, the exception that it caused.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub skipped: Option<usize>,
     /// Exception ID of the exception's parent, that is, the exception that caused this exception.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub cause: Option<String>,
     /// array of stackFrame objects.
     pub stack: Vec<StackFrame>,
@@ -161,10 +180,13 @@ pub struct Exception {
 #[derive(Debug, Serialize)]
 pub struct StackFrame {
     /// The relative path to the file.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
     /// The line in the file.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub line: Option<String>,
     /// The function or method name.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
 }
 
@@ -211,10 +233,10 @@ impl Segment {
 pub struct Http {
     /// Information about a request
     #[serde(skip_serializing_if = "Option::is_none")]
-    request: Option<Request>,
+    pub request: Option<Request>,
     /// Information about a response.
     #[serde(skip_serializing_if = "Option::is_none")]
-    response: Option<Response>,
+    pub response: Option<Response>,
 }
 
 ///  Information about a request.
@@ -222,31 +244,33 @@ pub struct Http {
 pub struct Request {
     /// The request method. For example, GET.
     #[serde(skip_serializing_if = "Option::is_none")]
-    method: Option<String>,
+    pub method: Option<String>,
     /// The full URL of the request, compiled from the protocol, hostname, and path of the request.
     #[serde(skip_serializing_if = "Option::is_none")]
-    url: Option<String>,
+    pub url: Option<String>,
     /// The IP address of the requester. Can be retrieved from the IP packet's Source Address or, for forwarded requests, from an X-Forwarded-For header.
     #[serde(skip_serializing_if = "Option::is_none")]
-    client_ip: Option<String>,
+    pub client_ip: Option<String>,
     /// The user agent string from the requester's client.
     #[serde(skip_serializing_if = "Option::is_none")]
-    user_agent: Option<String>,
+    pub user_agent: Option<String>,
     /// (segments only) boolean indicating that the client_ip was read from an X-Forwarded-For header and is not reliable as it could have been forged.
     #[serde(skip_serializing_if = "Option::is_none")]
-    x_forwarded_for: Option<String>,
+    pub x_forwarded_for: Option<String>,
     /// (subsegments only) boolean indicating that the downstream call is to another traced service. If this field is set to true, X-Ray considers the trace to be broken until the downstream service uploads a segment with a parent_id that matches the id of the subsegment that contains this block.
     #[serde(skip_serializing_if = "Option::is_none")]
-    traced: Option<bool>,
+    pub traced: Option<bool>,
 }
 
 ///  Information about a response.
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Response {
     /// number indicating the HTTP status of the response.
-    status: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<u16>,
     /// number indicating the length of the response body in bytes.
-    content_length: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_length: Option<u64>,
 }
 
 impl Subsegment {
@@ -334,6 +358,7 @@ pub struct Subsegment {
     /// aws object with information about the downstream AWS resource that your application called.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aws: Option<AwsOperation>,
+    /// contents of the sql query
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sql: Option<Sql>,
 }
@@ -342,16 +367,22 @@ pub struct Subsegment {
 #[derive(Debug, Default, Serialize)]
 pub struct AwsOperation {
     /// The name of the API action invoked against an AWS service or resource.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub operation: Option<String>,
     /// If your application accesses resources in a different account, or sends segments to a different account, record the ID of the account that owns the AWS resource that your application accessed.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub account_id: Option<String>,
     /// If the resource is in a region different from your application, record the region. For example, us-west-2.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub region: Option<String>,
     /// Unique identifier for the request.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
     /// For operations on an Amazon SQS queue, the queue's URL.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub queue_url: Option<String>,
     /// For operations on a DynamoDB table, the name of the table.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub table_name: Option<String>,
 }
 
@@ -359,20 +390,28 @@ pub struct AwsOperation {
 #[derive(Debug, Default, Serialize)]
 pub struct Sql {
     /// For SQL Server or other database connections that don't use URL connection strings, record the connection string, excluding passwords.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub connection_string: Option<String>,
     /// For a database connection that uses a URL connection string, record the URL, excluding passwords.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     /// The database query, with any user provided values removed or replaced by a placeholder.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sanitized_query: Option<String>,
     /// The name of the database engine.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub database_type: Option<String>,
     /// The version number of the database engine.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub database_version: Option<String>,
     /// The name and version number of the database engine driver that your application uses.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub driver_version: Option<String>,
     /// The database username.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub user: Option<String>,
     /// call if the query used a PreparedCall; statement if the query used a PreparedStatement.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub preparation: Option<String>,
 }
 
@@ -382,8 +421,8 @@ mod tests {
 
     #[test]
     fn segments_serialize() {
-        println!(
-            "{}",
+        assert_eq!(
+            r#"{"trace_id":"1-581cf771-a006649127e371903a2de979","id":"70de5b6f19ff9a0a","name":"Scorekeep","start_time":1478293361.271,"end_time":1478293361.449}"#,
             serde_json::to_string(&Segment {
                 name: "Scorekeep".into(),
                 id: SegmentId::Rendered("70de5b6f19ff9a0a".into()),
