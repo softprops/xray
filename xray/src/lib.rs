@@ -59,7 +59,6 @@ impl Client {
     /// to the provided `addr`
     pub fn new(addr: SocketAddr) -> Result<Self> {
         let socket = Arc::new(UdpSocket::bind(&[([0, 0, 0, 0], 0).into()][..])?);
-
         socket.set_nonblocking(true)?;
         socket.connect(&addr)?;
         Ok(Client { addr, socket })
