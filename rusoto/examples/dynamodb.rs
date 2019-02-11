@@ -1,13 +1,18 @@
-use rusoto_core::request::HttpClient;
-use rusoto_core::DefaultCredentialsProvider;
-use rusoto_dynamodb::{DynamoDb, DynamoDbClient};
+use rusoto_core::{DefaultCredentialsProvider, Region};
+use rusoto_dynamodb::{DynamoDb, DynamoDbClient, ListTablesInput};
+use tokio::runtime::Runtime;
 use xray_rusoto::TracedRequests;
 
 fn main() {
+    let mut rt = Runtime::new().expect("failed to initialize runtime");
     let client = DynamoDbClient::new_with(
-        TracedRequests::new(HttpClient::new().unwrap()),
-        DefaultCredentialsProvider::new().unwrap(),
-        Default::default(),
+        TracedRequests::default(),
+        DefaultCredentialsProvider::new().expect("failed to initialize credential provider"),
+        Region::default(),
     );
-    println!("{:#?}", client.list_tables(Default::default()).sync());
+    //let client = DynamoDbClient::new(Region::default());
+    println!(
+        "{:#?}",
+        rt.block_on(client.list_tables(ListTablesInput::default()))
+    );
 }

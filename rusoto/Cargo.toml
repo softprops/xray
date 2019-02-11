@@ -16,7 +16,7 @@ repository = "https://github.com/softprops/xray"
 futures = "0.1"
 rusoto_core = "0.36"
 xray = { version = "0.0.0", path = "../xray" }
-xray-header = { version = "0.0.0", path = "../header" }
 
 [dev-dependencies]
 rusoto_dynamodb = "0.36"
+tokio = "0.1"

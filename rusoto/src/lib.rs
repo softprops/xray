@@ -2,12 +2,12 @@
 
 use futures::Future;
 use rusoto_core::{
-    request::{HttpClientFuture, HttpDispatchError, HttpResponse},
+    request::{HttpClient, HttpDispatchError, HttpResponse},
     signature::SignedRequest,
-    DispatchSignedRequest, RusotoFuture,
+    DispatchSignedRequest,
 };
 use std::{sync::Arc, time::Duration};
-use xray::{Header, Client, Segment, Subsegment};
+use xray::{Client, Segment, Subsegment};
 
 pub struct TracedRequests<D> {
     dispatcher: D,
@@ -21,11 +21,47 @@ impl<D> TracedRequests<D> {
     }
 
     /// Create a new tracing dispatcher with a custom X-Ray client
-    pub fn new_with_client(dispatcher: D, client: Arc<Client>) -> Self {
+    pub fn new_with_client(
+        dispatcher: D,
+        client: Arc<Client>,
+    ) -> Self {
         Self { dispatcher, client }
     }
 }
 
+impl Default for TracedRequests<HttpClient> {
+    fn default() -> Self {
+        TracedRequests::new(HttpClient::new().expect("failed to initialize client"))
+    }
+}
+
+/// Implementation of DispatchSignedRequest which wraps
+/// an implementation of another DispatchSignedRequest
+/// with a tracing future
+impl<D> DispatchSignedRequest for TracedRequests<D>
+where
+    D: DispatchSignedRequest + Send + Sync + 'static,
+    D::Future: Send,
+{
+    type Future = TracingRequest<D::Future>;
+    fn dispatch(
+        &self,
+        request: SignedRequest,
+        timeout: Option<Duration>,
+    ) -> Self::Future {
+        let segment = Segment::begin("test");
+        let mut subsegment =
+            Subsegment::begin(segment.trace_id.clone(), None, request.service.as_str());
+        subsegment.namespace = Some("aws".into());
+        TracingRequest(
+            self.dispatcher.dispatch(request, timeout),
+            subsegment,
+            self.client.clone(),
+        )
+    }
+}
+
+/** a dispatching request that will be traced if x-ray trace is sampled */
 pub struct TracingRequest<T>(T, Subsegment, Arc<Client>);
 
 impl<T> Future for TracingRequest<T>
@@ -36,37 +72,12 @@ where
     type Error = HttpDispatchError;
     fn poll(&mut self) -> futures::Poll<Self::Item, Self::Error> {
         match self.0.poll() {
-            Err(e) => Err(e),
-            Ok(futures::Async::NotReady) => Ok(futures::Async::NotReady),
             Ok(futures::Async::Ready(res)) => {
-                let mut ss = &mut self.1;
-                ss.end();
-                //self.2.send(ss);
+                // todo: add tracing
                 Ok(futures::Async::Ready(res))
             }
+            err @ Err(_) => err,
+            other => other,
         }
-    }
-}
-
-impl<D> DispatchSignedRequest for TracedRequests<D>
-where
-    D: DispatchSignedRequest + Send + Sync + 'static,
-    D::Future: Send,
-{
-    type Future = TracingRequest<D::Future>;
-    fn dispatch(&self, request: SignedRequest, timeout: Option<Duration>) -> Self::Future {
-        println!("{:#?}", request);
-        // https://github.com/aws/aws-xray-sdk-go/blob/master/xray/aws.go#L58
-        let segment = Segment::begin("test-service");
-        let mut subsegment =
-            Subsegment::begin(segment.trace_id.clone(), None, request.service.as_str());
-        subsegment.namespace = Some("aws".into());
-        //request.add_header(Header::NAME, &format!("{}", Header::new(segment.trace_id)));
-        println!("{:#?}", request);
-        TracingRequest(
-            self.dispatcher.dispatch(request, timeout),
-            subsegment,
-            self.client.clone(),
-        )
     }
 }
