@@ -295,6 +295,7 @@ impl Subsegment {
             name: valid_name,
             trace_id: Some(trace_id),
             parent_id,
+            type_: "subsegment".into(),
             ..Subsegment::default()
         }
     }
