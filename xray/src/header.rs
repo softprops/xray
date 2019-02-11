@@ -63,9 +63,9 @@ impl Default for SamplingDecision {
 /// Parsed representation of `X-Amzn-Trace-Id` request header
 #[derive(PartialEq, Debug, Default)]
 pub struct Header {
-    trace_id: TraceId,
-    parent_id: Option<SegmentId>,
-    sampling_decision: SamplingDecision,
+    pub(crate) trace_id: TraceId,
+    pub(crate) parent_id: Option<SegmentId>,
+    pub(crate) sampling_decision: SamplingDecision,
     additional_data: HashMap<String, String>,
 }
 
