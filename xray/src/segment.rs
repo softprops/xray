@@ -28,7 +28,7 @@ pub struct Segment {
     pub in_progress: bool,
     /// A subsegment ID you specify if the request originated from an instrumented application. The X-Ray SDK adds the parent subsegment ID to the tracing header for downstream HTTP calls.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent_id: Option<String>,
+    pub parent_id: Option<SegmentId>,
     /// Indicates that a server error occurred (response status code was 5XX Server Error).
     #[serde(skip_serializing_if = "Not::not")]
     pub fault: bool,
