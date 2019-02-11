@@ -215,8 +215,12 @@ impl Segment {
     where
         N: Into<String>,
     {
+        let mut valid_name = name.into();
+        if valid_name.len() > 200 {
+            valid_name = valid_name[..200].into();
+        }
         Segment {
-            name: name.into()[..200].into(),
+            name: valid_name,
             ..Segment::default()
         }
     }
@@ -283,8 +287,12 @@ impl Subsegment {
     where
         N: Into<String>,
     {
+        let mut valid_name = name.into();
+        if valid_name.len() > 200 {
+            valid_name = valid_name[..200].into();
+        }
         Subsegment {
-            name: name.into()[..200].into(),
+            name: valid_name,
             trace_id: Some(trace_id),
             parent_id,
             ..Subsegment::default()
@@ -417,7 +425,36 @@ pub struct Sql {
 
 #[cfg(test)]
 mod tests {
-    use super::{Seconds, Segment, SegmentId, TraceId};
+    use super::{Seconds, Segment, SegmentId, Subsegment, TraceId};
+
+    #[test]
+    fn segments_begin_with_names_with_a_max_len() {
+        assert_eq!(Segment::begin("short").name, "short");
+        assert_eq!(
+            Segment::begin(String::from_utf8_lossy(&[b'X'; 201]))
+                .name
+                .len(),
+            200
+        );
+    }
+
+    #[test]
+    fn subsegments_begin_with_names_with_a_max_len() {
+        assert_eq!(
+            Subsegment::begin(TraceId::default(), None, "short").name,
+            "short"
+        );
+        assert_eq!(
+            Subsegment::begin(
+                TraceId::default(),
+                None,
+                String::from_utf8_lossy(&[b'X'; 201])
+            )
+            .name
+            .len(),
+            200
+        );
+    }
 
     #[test]
     fn segments_serialize() {
