@@ -1,6 +1,6 @@
 use std::{
     env::var,
-    fs::{create_dir_all, File}
+    fs::{create_dir_all, File},
 };
 
 pub(crate) fn init() -> std::io::Result<()> {
