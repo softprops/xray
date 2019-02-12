@@ -30,7 +30,6 @@ pub type Result<T> = StdResult<T, Error>;
 /// X-Ray daemon client interface
 #[derive(Debug)]
 pub struct Client {
-    addr: SocketAddr,
     socket: Arc<UdpSocket>,
 }
 
@@ -62,7 +61,7 @@ impl Client {
         let socket = Arc::new(UdpSocket::bind(&[([0, 0, 0, 0], 0).into()][..])?);
         socket.set_nonblocking(true)?;
         socket.connect(&addr)?;
-        Ok(Client { addr, socket })
+        Ok(Client { socket })
     }
 
     #[inline]
