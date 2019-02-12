@@ -42,9 +42,9 @@ impl Default for Client {
         // https://docs.aws.amazon.com/lambda/latest/dg/lambda-x-ray.html
         // todo documment error handling
         let addr: SocketAddr = env::var("AWS_XRAY_DAEMON_ADDRESS")
-            .map_err(|_| ())
-            .and_then(|value| value.parse::<SocketAddr>().map_err(|_| ()))
-            .unwrap_or_else(|_| {
+            .ok()
+            .and_then(|value| value.parse::<SocketAddr>().ok())
+            .unwrap_or_else(|| {
                 log::trace!("No valid `AWS_XRAY_DAEMON_ADDRESS` env variable detected falling back on default");
                 ([127, 0, 0, 1], 2000).into()
             });
