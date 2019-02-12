@@ -49,7 +49,7 @@ impl Default for Client {
                 ([127, 0, 0, 1], 2000).into()
             });
 
-        Client::new(addr).unwrap()
+        Client::new(addr).expect("failed to connect to socket")
     }
 }
 
