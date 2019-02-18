@@ -11,15 +11,15 @@ use std::{collections::HashMap, ops::Not};
 #[derive(Debug, Default, Serialize)]
 pub struct Segment {
     /// A unique identifier that connects all segments and subsegments originating from a single client request.
-    pub trace_id: TraceId,
+    pub(crate) trace_id: TraceId,
     ///  A 64-bit identifier for the segment, unique among segments in the same trace, in 16 hexadecimal digits.
-    pub id: SegmentId,
+    pub(crate) id: SegmentId,
     /// The logical name of the service that handled the request, up to 200 characters. For example, your application's name or domain name. Names can contain Unicode letters, numbers, and whitespace, and the following symbols: _, ., :, /, %, &, #, =, +, \, -, @
     ///
     /// A segment's name should match the domain name or logical name of the service that generates the segment. However, this is not enforced. Any application that has permission to PutTraceSegments can send segments with any name.
-    pub name: String,
+    pub(crate) name: String,
     /// Number that is the time the segment was created, in floating point seconds in epoch time.
-    pub start_time: Seconds,
+    pub(crate) start_time: Seconds,
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Number that is the time the segment was closed.
     pub end_time: Option<Seconds>,
@@ -94,6 +94,13 @@ pub struct Aws {
     pub elastic_beanstalk: Option<ElasticBeanstalk>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tracing: Option<Tracing>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub xray: Option<XRay>,
+}
+
+#[derive(Debug, Default, Serialize)]
+pub struct XRay {
+    pub sdk_version: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -228,6 +235,7 @@ impl Segment {
     /// End the segment by assigning its end_time
     pub fn end(&mut self) -> &mut Self {
         self.end_time = Some(Seconds::now());
+        self.in_progress = false;
         self
     }
 }
@@ -296,6 +304,7 @@ impl Subsegment {
             trace_id: Some(trace_id),
             parent_id,
             type_: "subsegment".into(),
+            in_progress: true,
             ..Subsegment::default()
         }
     }
@@ -303,6 +312,7 @@ impl Subsegment {
     /// End the subsegment by assigning its end_time
     pub fn end(&mut self) -> &mut Self {
         self.end_time = Some(Seconds::now());
+        self.in_progress = false;
         self
     }
 }
@@ -311,14 +321,14 @@ impl Subsegment {
 #[derive(Debug, Default, Serialize)]
 pub struct Subsegment {
     /// The logical name of the subsegment. For downstream calls, name the subsegment after the resource or service called. For custom subsegments, name the subsegment after the code that it instruments (e.g., a function name).
-    pub name: String,
+    pub(crate) name: String,
     /// A 64-bit identifier for the subsegment, unique among segments in the same trace, in 16 hexadecimal digits.
-    pub id: SegmentId,
+    pub(crate) id: SegmentId,
     /// number that is the time the subsegment was created, in floating point seconds in epoch time, accurate to milliseconds. For example, 1480615200.010 or 1.480615200010E9.
-    pub start_time: Seconds,
-    ///  number that is the time the subsegment was closed. For example, 1480615200.090 or 1.480615200090E9. Specify an end_time or in_progress.
+    pub(crate) start_time: Seconds,
+    /// number that is the time the subsegment was closed. For example, 1480615200.090 or 1.480615200090E9. Specify an end_time or in_progress.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_time: Option<Seconds>,
+    pub(crate) end_time: Option<Seconds>,
     /// Trace ID of the subsegment's parent segment. Required only if sending a subsegment separately.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trace_id: Option<TraceId>,
