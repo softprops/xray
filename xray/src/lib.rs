@@ -15,13 +15,14 @@ mod error;
 mod header;
 mod hexbytes;
 mod lambda;
+mod recorder;
 mod segment;
 mod segment_id;
 mod trace_id;
 
 pub use crate::{
-    epoch::Seconds, error::Error, header::Header, segment::*, segment_id::SegmentId,
-    trace_id::TraceId,
+    epoch::Seconds, error::Error, header::Header, recorder::Recorder, segment::*,
+    segment_id::SegmentId, trace_id::TraceId,
 };
 
 /// Type alias for Results which may return `xray::Errors`
@@ -44,7 +45,7 @@ impl Default for Client {
             .ok()
             .and_then(|value| value.parse::<SocketAddr>().ok())
             .unwrap_or_else(|| {
-                log::trace!("No valid `AWS_XRAY_DAEMON_ADDRESS` env variable detected falling back on default");
+                log::trace!("No valid `AWS_XRAY_DAEMON_ADDRESS` env variable detected falling back on default: 127.0.0.1:2000");
                 ([127, 0, 0, 1], 2000).into()
             });
 
@@ -53,7 +54,8 @@ impl Default for Client {
 }
 
 impl Client {
-    const HEADER: &'static [u8] = br#"{"format": "json", "version": 1}\n"#;
+    const HEADER: &'static [u8] = br#"{"format": "json", "version": 1}
+"#;
 
     /// Return a new X-Ray client connected
     /// to the provided `addr`
@@ -61,6 +63,7 @@ impl Client {
         let socket = Arc::new(UdpSocket::bind(&[([0, 0, 0, 0], 0).into()][..])?);
         socket.set_nonblocking(true)?;
         socket.connect(&addr)?;
+        log::trace!("connecting to xray daemon {}", addr);
         Ok(Client { socket })
     }
 
@@ -81,7 +84,12 @@ impl Client {
     where
         S: Serialize,
     {
-        self.socket.send(&Self::packet(data)?)?;
+        log::trace!(
+            "sending trace data {}",
+            serde_json::to_string_pretty(&data).unwrap_or_default()
+        );
+        let out = self.socket.send(&Self::packet(data)?)?;
+        log::trace!("send? {:?}", out);
         Ok(())
     }
 }
@@ -89,6 +97,19 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore]
+    fn client_can_send_data() {
+        env_logger::init();
+        let mut segment = Segment::begin("test-segment");
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        segment.end();
+        if let Err(e) = Client::default().send(&segment) {
+            assert!(false, "failed to send data: {}", e)
+        }
+    }
+
     #[test]
     fn client_prefixes_packets_with_header() {
         assert_eq!(
