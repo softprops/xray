@@ -218,7 +218,12 @@ impl Segment {
     /// Begins a new named segment
     ///
     /// A segment's name should match the domain name or logical name of the service that generates the segment. However, this is not enforced. Any application that has permission to PutTraceSegments can send segments with any name.
-    pub fn begin<N>(name: N) -> Self
+    pub fn begin<N>(
+        name: N,
+        id: SegmentId,
+        parent_id: Option<SegmentId>,
+        trace_id: TraceId,
+    ) -> Self
     where
         N: Into<String>,
     {
@@ -228,6 +233,16 @@ impl Segment {
         }
         Segment {
             name: valid_name,
+            id,
+            parent_id,
+            trace_id,
+            in_progress: true,
+            aws: Some(Aws {
+                xray: Some(XRay {
+                    sdk_version: Some(env!("CARGO_PKG_VERSION").into()),
+                }),
+                ..Aws::default()
+            }),
             ..Segment::default()
         }
     }
@@ -288,9 +303,10 @@ pub struct Response {
 impl Subsegment {
     /// Create a new subsegment
     pub fn begin<N>(
-        trace_id: TraceId,
-        parent_id: Option<SegmentId>,
         name: N,
+        id: SegmentId,
+        parent_id: Option<SegmentId>,
+        trace_id: TraceId,
     ) -> Self
     where
         N: Into<String>,
@@ -301,6 +317,7 @@ impl Subsegment {
         }
         Subsegment {
             name: valid_name,
+            id,
             trace_id: Some(trace_id),
             parent_id,
             type_: "subsegment".into(),
@@ -440,11 +457,19 @@ mod tests {
 
     #[test]
     fn segments_begin_with_names_with_a_max_len() {
-        assert_eq!(Segment::begin("short").name, "short");
         assert_eq!(
-            Segment::begin(String::from_utf8_lossy(&[b'X'; 201]))
-                .name
-                .len(),
+            Segment::begin("short", SegmentId::default(), None, TraceId::default()).name,
+            "short"
+        );
+        assert_eq!(
+            Segment::begin(
+                String::from_utf8_lossy(&[b'X'; 201]),
+                SegmentId::default(),
+                None,
+                TraceId::default()
+            )
+            .name
+            .len(),
             200
         );
     }
@@ -452,14 +477,15 @@ mod tests {
     #[test]
     fn subsegments_begin_with_names_with_a_max_len() {
         assert_eq!(
-            Subsegment::begin(TraceId::default(), None, "short").name,
+            Subsegment::begin("short", SegmentId::default(), None, TraceId::default()).name,
             "short"
         );
         assert_eq!(
             Subsegment::begin(
-                TraceId::default(),
+                String::from_utf8_lossy(&[b'X'; 201]),
+                SegmentId::default(),
                 None,
-                String::from_utf8_lossy(&[b'X'; 201])
+                TraceId::default()
             )
             .name
             .len(),

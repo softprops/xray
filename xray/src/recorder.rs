@@ -1,4 +1,4 @@
-use crate::{Aws, Client, Header, Segment, SegmentId, Subsegment, TraceId, XRay};
+use crate::{Client, Header, Segment, SegmentId, Subsegment, TraceId, XRay};
 use serde::Serialize;
 use std::{marker::PhantomData, mem, sync::Arc};
 use thread_local_object::ThreadLocal;
@@ -58,20 +58,22 @@ impl OpenSubsegment {
     where
         N: Into<String>,
     {
-        let subseg = Subsegment {
-            name: name.into(),
-            id: context.segment_id.clone(),
-            parent_id: context.parent_id.clone(),
-            trace_id: Some(context.trace_id.clone()),
-            type_: "subsegment".into(),
-            in_progress: true,
-            ..Subsegment::default()
-        };
+        let subseg = Subsegment::begin(
+            name,
+            context.segment_id.clone(),
+            context.parent_id.clone(),
+            context.trace_id.clone(),
+        );
+
         Self {
             current,
             context,
             state: Some(subseg),
         }
+    }
+
+    pub fn subsegment(&mut self) -> &mut Option<Subsegment> {
+        &mut self.state
     }
 }
 
@@ -105,20 +107,13 @@ impl OpenSegment {
         context: Context,
         name: String,
     ) -> Self {
-        let segment = Segment {
+        let segment = Segment::begin(
             name,
-            id: context.segment_id.clone(),
-            parent_id: context.parent_id.clone(),
-            trace_id: context.trace_id.clone(),
-            in_progress: true,
-            aws: Some(Aws {
-                xray: Some(XRay {
-                    sdk_version: Some(env!("CARGO_PKG_VERSION").into()),
-                }),
-                ..Aws::default()
-            }),
-            ..Segment::default()
-        };
+            context.segment_id.clone(),
+            context.parent_id.clone(),
+            context.trace_id.clone(),
+        );
+
         Self {
             current,
             context,
@@ -159,7 +154,6 @@ impl Recorder {
         S: Serialize,
     {
         if let Err(e) = self.0.client.send(&s) {
-            // use debug/trace macro instead
             log::debug!("error emitting data {:?}", e);
         }
     }
@@ -192,7 +186,6 @@ impl Recorder {
     {
         let name = name.into();
         if let Some(current) = self.current() {
-            // use debug/trace macro instead
             log::debug!(
           "Beginning new segment while another segment exists in the segment context. Overwriting current segment '{}' to start new segment named '{}'.",
           current.segment_id, name

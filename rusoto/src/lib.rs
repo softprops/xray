@@ -7,25 +7,28 @@ use rusoto_core::{
     DispatchSignedRequest,
 };
 use std::{sync::Arc, time::Duration};
-use xray::{Client, Segment, Subsegment};
+use xray::{OpenSubsegment, Recorder};
 
 pub struct TracedRequests<D> {
     dispatcher: D,
-    client: Arc<Client>,
+    recorder: Recorder,
 }
 
 impl<D> TracedRequests<D> {
     /// Create a new tracing dispatcher with a default X-Ray client
     pub fn new(dispatcher: D) -> Self {
-        Self::new_with_client(dispatcher, Arc::new(Client::default()))
+        Self::new_with_recorder(dispatcher, Recorder::default())
     }
 
     /// Create a new tracing dispatcher with a custom X-Ray client
-    pub fn new_with_client(
+    pub fn new_with_recorder(
         dispatcher: D,
-        client: Arc<Client>,
+        recorder: Recorder,
     ) -> Self {
-        Self { dispatcher, client }
+        Self {
+            dispatcher,
+            recorder,
+        }
     }
 }
 
@@ -49,20 +52,20 @@ where
         request: SignedRequest,
         timeout: Option<Duration>,
     ) -> Self::Future {
-        let segment = Segment::begin("test");
-        let mut subsegment =
-            Subsegment::begin(segment.trace_id.clone(), None, request.service.as_str());
-        subsegment.namespace = Some("aws".into());
+        let mut open = self.recorder.begin_subsegment(request.service.clone());
+        if let Some(seg) = open.subsegment() {
+            // populate subsegment fields
+            seg.namespace = Some("aws".into());
+        }
         TracingRequest(
             self.dispatcher.dispatch(request, timeout),
-            subsegment,
-            self.client.clone(),
+            self.recorder.clone(),
         )
     }
 }
 
 /** a dispatching request that will be traced if x-ray trace is sampled */
-pub struct TracingRequest<T>(T, Subsegment, Arc<Client>);
+pub struct TracingRequest<T>(T, Recorder);
 
 impl<T> Future for TracingRequest<T>
 where
