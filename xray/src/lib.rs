@@ -21,8 +21,13 @@ mod segment_id;
 mod trace_id;
 
 pub use crate::{
-    epoch::Seconds, error::Error, header::Header, recorder::Recorder, segment::*,
-    segment_id::SegmentId, trace_id::TraceId,
+    epoch::Seconds,
+    error::Error,
+    header::Header,
+    recorder::{OpenSegment, OpenSubsegment, Recorder},
+    segment::*,
+    segment_id::SegmentId,
+    trace_id::TraceId,
 };
 
 /// Type alias for Results which may return `xray::Errors`
@@ -102,7 +107,12 @@ mod tests {
     #[ignore]
     fn client_can_send_data() {
         env_logger::init();
-        let mut segment = Segment::begin("test-segment");
+        let mut segment = Segment::begin(
+            "test-segment",
+            SegmentId::default(),
+            None,
+            TraceId::default(),
+        );
         std::thread::sleep(std::time::Duration::from_secs(1));
         segment.end();
         if let Err(e) = Client::default().send(&segment) {
@@ -117,7 +127,9 @@ mod tests {
                 "foo": "bar"
             }))
             .unwrap(),
-            br#"{"format": "json", "version": 1}\n{"foo":"bar"}"#.to_vec()
+            br#"{"format": "json", "version": 1}
+{"foo":"bar"}"#
+                .to_vec()
         )
     }
 }
