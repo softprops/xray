@@ -70,6 +70,9 @@ pub struct Header {
 }
 
 impl Header {
+    /// HTTP header name associated with X-Ray trace data
+    ///
+    /// HTTP header values should be the Display serialization of Header structs
     pub const NAME: &'static str = "X-Amzn-Trace-Id";
 
     pub fn new(trace_id: TraceId) -> Self {
