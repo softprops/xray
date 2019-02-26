@@ -1,4 +1,4 @@
-use crate::{Client, Header, Segment, SegmentId, Subsegment, TraceId, XRay};
+use crate::{Client, Header, Segment, SegmentId, Subsegment, TraceId};
 use serde::Serialize;
 use std::{marker::PhantomData, mem, sync::Arc};
 use thread_local_object::ThreadLocal;
@@ -230,7 +230,7 @@ impl Recorder {
                     ..
                 }) => Context {
                     trace_id,
-                    parent_id: parent_id,
+                    parent_id,
                     segment_id: SegmentId::new(),
                 },
                 _ => Context::default(),
