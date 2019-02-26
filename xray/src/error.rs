@@ -4,8 +4,10 @@ use std::io::Error as IOError;
 
 #[derive(Debug, Fail)]
 pub enum Error {
+    /// Returned for general IO errors
     #[fail(display = "IO Error")]
     IO(IOError),
+    /// Returned for serialization related errors
     #[fail(display = "Json Error")]
     Json(JsonError),
 }
