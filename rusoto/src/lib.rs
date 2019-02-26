@@ -6,8 +6,11 @@ use rusoto_core::{
     signature::SignedRequest,
     DispatchSignedRequest,
 };
-use std::{sync::Arc, time::Duration};
-use xray::{OpenSubsegment, Recorder};
+use std::time::Duration;
+use xray::{
+    segment::{AwsOperation, Http, Response},
+    OpenSubsegment, Recorder,
+};
 
 pub struct TracedRequests<D> {
     dispatcher: D,
@@ -52,7 +55,26 @@ where
         request: SignedRequest,
         timeout: Option<Duration>,
     ) -> Self::Future {
-        let mut open = self.recorder.begin_subsegment(request.service.clone());
+        let mut open = self.recorder.begin_subsegment(request.service.as_ref());
+        let operation = request
+            .headers
+            .get("x-amz-target")
+            .and_then(|values| values.iter().next())
+            .and_then(|value| {
+                value
+                    .iter()
+                    .position(|&r| r == b'.')
+                    .and_then(|pos| String::from_utf8(value[pos..].to_vec()).ok())
+            });
+        let region = Some(request.region.name().into());
+        if let Some(sub) = open.subsegment() {
+            sub.aws = Some(AwsOperation {
+                operation,
+                region,
+                ..AwsOperation::default()
+            });
+        };
+
         if let Some(seg) = open.subsegment() {
             // populate subsegment fields
             seg.namespace = Some("aws".into());
@@ -60,12 +82,13 @@ where
         TracingRequest(
             self.dispatcher.dispatch(request, timeout),
             self.recorder.clone(),
+            open,
         )
     }
 }
 
 /** a dispatching request that will be traced if x-ray trace is sampled */
-pub struct TracingRequest<T>(T, Recorder);
+pub struct TracingRequest<T>(T, Recorder, OpenSubsegment);
 
 impl<T> Future for TracingRequest<T>
 where
@@ -76,7 +99,18 @@ where
     fn poll(&mut self) -> futures::Poll<Self::Item, Self::Error> {
         match self.0.poll() {
             Ok(futures::Async::Ready(res)) => {
-                // todo: add tracing
+                if let Some(sub) = self.2.subsegment() {
+                    sub.http = Some(Http {
+                        response: Some(Response {
+                            status: Some(res.status.as_u16()),
+                            content_length: res
+                                .headers
+                                .get("Content-Length")
+                                .and_then(|value| value.parse::<u64>().ok()),
+                        }),
+                        ..Http::default()
+                    });
+                }
                 Ok(futures::Async::Ready(res))
             }
             err @ Err(_) => err,
