@@ -244,15 +244,15 @@ impl Recorder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread;
+    use std::{thread, time::Duration};
     #[test]
     #[ignore]
     fn test_recorder() {
         let recorder = Recorder::default();
-        let a = recorder.begin_segment("api.example.com");
-        thread::sleep_ms(1000);
+        let a = recorder.begin_segment("test-segment");
+        thread::sleep(Duration::from_secs(1));
         let b = recorder.begin_subsegment("subsegment-b");
-        thread::sleep_ms(1000);
+        thread::sleep(Duration::from_secs(1));
         let c = recorder.begin_subsegment("subsegment-c");
     }
 }
