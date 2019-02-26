@@ -66,19 +66,17 @@ where
                     .position(|&r| r == b'.')
                     .and_then(|pos| String::from_utf8(value[pos..].to_vec()).ok())
             });
-        let region = Some(request.region.name().into());
+
         if let Some(sub) = open.subsegment() {
+            sub.namespace = Some("aws".into());
+            let region = Some(request.region.name().into());
             sub.aws = Some(AwsOperation {
                 operation,
                 region,
                 ..AwsOperation::default()
             });
-        };
-
-        if let Some(seg) = open.subsegment() {
-            // populate subsegment fields
-            seg.namespace = Some("aws".into());
         }
+
         TracingRequest(
             self.dispatcher.dispatch(request, timeout),
             self.recorder.clone(),
