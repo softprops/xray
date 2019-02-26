@@ -16,7 +16,7 @@ mod header;
 mod hexbytes;
 mod lambda;
 mod recorder;
-mod segment;
+pub mod segment;
 mod segment_id;
 mod trace_id;
 
